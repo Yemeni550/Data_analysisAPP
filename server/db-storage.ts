@@ -291,7 +291,7 @@ export class DatabaseStorage implements IStorage {
       totalInventoryItems: itemCount?.count || 0,
       lowStockCount: lowStockCount?.count || 0,
       expiringCount: expiringCount?.count || 0,
-      recentActivity: recentLogs.map((log) => ({
+      recentActivity: recentLogs.map((log: AuditLog) => ({
         type: log.action,
         description: log.action,
         timestamp: log.timestamp.toISOString(),
