@@ -123,7 +123,15 @@ export class MemStorage implements IStorage {
   async createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse> {
     const id = `wh_${Date.now()}`;
     const now = new Date();
-    const newWarehouse: Warehouse = { id, ...warehouse, createdAt: now, updatedAt: now };
+    const newWarehouse: Warehouse = {
+      id,
+      name: warehouse.name,
+      location: warehouse.location ?? null,
+      description: warehouse.description ?? null,
+      capacity: warehouse.capacity ?? 0,
+      createdAt: now,
+      updatedAt: now,
+    };
     this.warehouses.set(id, newWarehouse);
     return newWarehouse;
   }
@@ -153,8 +161,16 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const newItem: InventoryItem = {
       id,
-      ...item,
+      name: item.name,
+      warehouseId: item.warehouseId,
+      sku: item.sku,
+      category: item.category ?? null,
+      quantity: item.quantity ?? 0,
+      unit: item.unit ?? "pcs",
+      batchNumber: item.batchNumber ?? null,
       expirationDate: item.expirationDate ? new Date(item.expirationDate) : null,
+      location: item.location ?? null,
+      description: item.description ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -209,7 +225,17 @@ export class MemStorage implements IStorage {
 
   async createProductHistory(history: InsertProductHistory): Promise<ProductHistory> {
     const id = `hist_${Date.now()}`;
-    const newHistory: ProductHistory = { id, ...history, timestamp: new Date() };
+    const newHistory: ProductHistory = {
+      id,
+      inventoryItemId: history.inventoryItemId,
+      actionType: history.actionType,
+      quantityChange: history.quantityChange,
+      previousQuantity: history.previousQuantity,
+      newQuantity: history.newQuantity,
+      userId: history.userId ?? null,
+      notes: history.notes ?? null,
+      timestamp: new Date(),
+    };
     const existing = this.productHistory.get(history.inventoryItemId) || [];
     this.productHistory.set(history.inventoryItemId, [...existing, newHistory]);
     return newHistory;
@@ -222,7 +248,13 @@ export class MemStorage implements IStorage {
   async createTable(table: InsertTable): Promise<DataTable> {
     const id = `tbl_${Date.now()}`;
     const now = new Date();
-    const newTable: DataTable = { id, ...table, createdAt: now, updatedAt: now };
+    const newTable: DataTable = {
+      id,
+      name: table.name,
+      description: table.description ?? null,
+      createdBy: table.createdBy ?? null,
+      createdAt: now,
+    };
     this.tables.set(id, newTable);
     return newTable;
   }
@@ -253,8 +285,8 @@ export class MemStorage implements IStorage {
   }
 
   async deleteTableRow(id: string): Promise<void> {
-    for (const [tableId, rows] of this.tableRows.entries()) {
-      const filtered = rows.filter((row) => row.id !== id);
+    for (const [tableId, rows] of Array.from(this.tableRows.entries())) {
+      const filtered = rows.filter((row: TableRow) => row.id !== id);
       if (filtered.length !== rows.length) {
         this.tableRows.set(tableId, filtered);
         return;
@@ -264,7 +296,17 @@ export class MemStorage implements IStorage {
 
   async createCapturedImage(image: InsertCapturedImage): Promise<CapturedImage> {
     const id = `img_${Date.now()}`;
-    const newImage: CapturedImage = { id, ...image, createdAt: new Date() };
+    const newImage: CapturedImage = {
+      id,
+      url: image.url,
+      filename: image.filename,
+      metadata: image.metadata ?? {},
+      ocrText: image.ocrText ?? null,
+      processedData: image.processedData ?? {},
+      processingStatus: image.processingStatus ?? "pending",
+      uploadedBy: image.uploadedBy,
+      createdAt: new Date(),
+    };
     this.capturedImages.set(id, newImage);
     return newImage;
   }
@@ -287,7 +329,16 @@ export class MemStorage implements IStorage {
 
   async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
     const id = `log_${Date.now()}`;
-    const newLog: AuditLog = { id, ...log, timestamp: new Date() };
+    const newLog: AuditLog = {
+      id,
+      userId: log.userId ?? null,
+      action: log.action,
+      endpoint: log.endpoint,
+      method: log.method,
+      metadata: log.metadata ?? {},
+      ipAddress: log.ipAddress ?? null,
+      timestamp: new Date(),
+    };
     this.auditLogs.push(newLog);
     return newLog;
   }

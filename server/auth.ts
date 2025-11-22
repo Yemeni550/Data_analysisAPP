@@ -63,7 +63,7 @@ export async function auditLog(
       action,
       endpoint,
       method,
-      details,
+      metadata: details ?? {},
       ipAddress: ipAddress || null,
     });
   } catch (error) {

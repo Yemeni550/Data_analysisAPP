@@ -1,317 +1,211 @@
-import type {
+import { relations } from "drizzle-orm";
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+
+export const userRoles = ["super_admin", "admin", "manager", "viewer"] as const;
+export type UserRole = (typeof userRoles)[number];
+
+export const users = pgTable("users", {
+  id: text("id").primaryKey(),
+  email: text("email"),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  profileImageUrl: text("profile_image_url"),
+  role: text("role", { enum: userRoles }).notNull().default("viewer" as UserRole),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const warehouses = pgTable("warehouses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  location: text("location"),
+  description: text("description"),
+  capacity: integer("capacity").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const inventoryItems = pgTable("inventory_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  warehouseId: uuid("warehouse_id")
+    .notNull()
+    .references(() => warehouses.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  sku: text("sku").notNull(),
+  category: text("category"),
+  quantity: integer("quantity").default(0).notNull(),
+  unit: text("unit").default("pcs").notNull(),
+  batchNumber: text("batch_number"),
+  expirationDate: timestamp("expiration_date", { withTimezone: false }),
+  location: text("location"),
+  description: text("description"),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const productHistory = pgTable("product_history", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  inventoryItemId: uuid("inventory_item_id")
+    .notNull()
+    .references(() => inventoryItems.id, { onDelete: "cascade" }),
+  actionType: text("action_type").notNull(),
+  quantityChange: integer("quantity_change").notNull(),
+  previousQuantity: integer("previous_quantity").notNull(),
+  newQuantity: integer("new_quantity").notNull(),
+  userId: text("user_id"),
+  notes: text("notes"),
+  timestamp: timestamp("timestamp", { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const tables = pgTable("tables", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const tableRows = pgTable("table_rows", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tableId: uuid("table_id")
+    .notNull()
+    .references(() => tables.id, { onDelete: "cascade" }),
+  data: jsonb("data").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const capturedImages = pgTable("captured_images", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  url: text("url").notNull(),
+  filename: text("filename").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}).notNull(),
+  ocrText: text("ocr_text"),
+  processedData: jsonb("processed_data").$type<Record<string, unknown>>().default({}).notNull(),
+  processingStatus: text("processing_status").notNull().default("pending"),
+  uploadedBy: text("uploaded_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id"),
+  action: text("action").notNull(),
+  endpoint: text("endpoint").notNull(),
+  method: text("method").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}).notNull(),
+  ipAddress: text("ip_address"),
+  timestamp: timestamp("timestamp", { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const usersRelations = relations(users, (helpers) => ({
+  tables: helpers.many(tables, { relationName: "table_creator" }),
+}));
+
+export const warehouseRelations = relations(warehouses, (helpers) => ({
+  inventoryItems: helpers.many(inventoryItems),
+}));
+
+export const inventoryRelations = relations(inventoryItems, (helpers) => ({
+  warehouse: helpers.one(warehouses, {
+    fields: [inventoryItems.warehouseId],
+    references: [warehouses.id],
+  }),
+  history: helpers.many(productHistory),
+}));
+
+export const tableRelations = relations(tables, (helpers) => ({
+  rows: helpers.many(tableRows),
+}));
+
+export const capturedImageRelations = relations(capturedImages, (helpers) => ({
+  uploader: helpers.one(users, {
+    fields: [capturedImages.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
+export type User = typeof users.$inferSelect;
+export type UpsertUser = Pick<
   User,
-  UpsertUser,
-  Warehouse,
-  InsertWarehouse,
-  InventoryItem,
-  InsertInventoryItem,
-  ProductHistory,
-  InsertProductHistory,
-  Table as DataTable,
-  InsertTable,
-  TableRow,
-  InsertTableRow,
-  CapturedImage,
-  InsertCapturedImage,
-  AuditLog,
-  InsertAuditLog,
-  UpdateUserRole,
-} from "@shared/schema";
+  "id" | "email" | "firstName" | "lastName" | "profileImageUrl"
+>;
+export type Warehouse = typeof warehouses.$inferSelect;
+export type InsertWarehouse = typeof warehouses.$inferInsert;
+export type InventoryItem = typeof inventoryItems.$inferSelect;
+export type InsertInventoryItem = typeof inventoryItems.$inferInsert;
+export type ProductHistory = typeof productHistory.$inferSelect;
+export type InsertProductHistory = typeof productHistory.$inferInsert;
+export type Table = typeof tables.$inferSelect;
+export type InsertTable = typeof tables.$inferInsert;
+export type TableRow = typeof tableRows.$inferSelect;
+export type InsertTableRow = typeof tableRows.$inferInsert;
+export type CapturedImage = typeof capturedImages.$inferSelect;
+export type InsertCapturedImage = typeof capturedImages.$inferInsert;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;
+export type UpdateUserRole = { role: UserRole };
 
-export interface IStorage {
-  // Users
-  upsertUser(user: UpsertUser): Promise<User>;
-  getUserById(id: string): Promise<User | null>;
-  getAllUsers(): Promise<User[]>;
-  updateUserRole(userId: string, role: UpdateUserRole): Promise<User>;
+const dateOrNull = z
+  .union([z.string(), z.date()])
+  .nullable()
+  .transform((value: string | Date | null | undefined) => {
+    if (!value) return null;
+    const parsed = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  });
 
-  // Warehouses
-  createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse>;
-  getWarehouses(): Promise<Warehouse[]>;
-  getWarehouseById(id: string): Promise<Warehouse | null>;
-  updateWarehouse(id: string, warehouse: Partial<InsertWarehouse>): Promise<Warehouse>;
-  deleteWarehouse(id: string): Promise<void>;
+export const insertWarehouseSchema = createInsertSchema(warehouses, {
+  name: z.string().min(1, "Name is required"),
+  capacity: z.number().int().nonnegative().default(0),
+  location: z.string().optional(),
+  description: z.string().optional(),
+});
 
-  // Inventory
-  createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem>;
-  getInventoryItems(): Promise<InventoryItem[]>;
-  getInventoryItemById(id: string): Promise<InventoryItem | null>;
-  getInventoryByWarehouse(warehouseId: string): Promise<InventoryItem[]>;
-  updateInventoryItem(id: string, item: Partial<InsertInventoryItem>): Promise<InventoryItem>;
-  deleteInventoryItem(id: string): Promise<void>;
-  getLowStockItems(threshold?: number): Promise<InventoryItem[]>;
-  getExpiringItems(daysAhead?: number): Promise<InventoryItem[]>;
+export const insertInventoryItemSchema = createInsertSchema(inventoryItems, {
+  name: z.string().min(1, "Name is required"),
+  sku: z.string().min(1, "SKU is required"),
+  quantity: z.number().int().nonnegative().default(0),
+  category: z.string().optional(),
+  batchNumber: z.string().optional(),
+  expirationDate: dateOrNull,
+  location: z.string().optional(),
+  description: z.string().optional(),
+});
 
-  // Product History
-  createProductHistory(history: InsertProductHistory): Promise<ProductHistory>;
-  getProductHistory(inventoryItemId: string): Promise<ProductHistory[]>;
+export const insertTableSchema = createInsertSchema(tables, {
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
+  createdBy: z.string().optional(),
+});
 
-  // Tables
-  createTable(table: InsertTable): Promise<DataTable>;
-  getTables(): Promise<DataTable[]>;
-  getTableById(id: string): Promise<DataTable | null>;
-  deleteTable(id: string): Promise<void>;
+export const insertTableRowSchema = createInsertSchema(tableRows, {
+  data: z.record(z.any()),
+});
 
-  // Table Rows
-  createTableRow(row: InsertTableRow): Promise<TableRow>;
-  getTableRows(tableId: string): Promise<TableRow[]>;
-  deleteTableRow(id: string): Promise<void>;
+export const insertCapturedImageSchema = createInsertSchema(capturedImages, {
+  metadata: z.record(z.any()).default({}),
+  processedData: z.record(z.any()).default({}),
+  processingStatus: z.string().default("pending"),
+});
 
-  // Captured Images
-  createCapturedImage(image: InsertCapturedImage): Promise<CapturedImage>;
-  getCapturedImages(): Promise<CapturedImage[]>;
-  getCapturedImageById(id: string): Promise<CapturedImage | null>;
-  updateCapturedImage(id: string, image: Partial<InsertCapturedImage>): Promise<CapturedImage>;
+export const insertAuditLogSchema = createInsertSchema(auditLogs, {
+  metadata: z.record(z.any()).default({}),
+});
 
-  // Audit Logs
-  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
-  getAuditLogs(limit?: number): Promise<AuditLog[]>;
+export const insertProductHistorySchema = createInsertSchema(productHistory, {
+  notes: z.string().optional(),
+});
 
-  // Dashboard Stats
-  getDashboardStats(): Promise<{
-    totalWarehouses: number;
-    totalInventoryItems: number;
-    lowStockCount: number;
-    expiringCount: number;
-    recentActivity: Array<{
-      type: string;
-      description: string;
-      timestamp: string;
-    }>;
-  }>;
-}
-
-export class MemStorage implements IStorage {
-  private users: Map<string, User> = new Map();
-  private warehouses: Map<string, Warehouse> = new Map();
-  private inventoryItems: Map<string, InventoryItem> = new Map();
-  private productHistory: Map<string, ProductHistory[]> = new Map();
-  private tables: Map<string, DataTable> = new Map();
-  private tableRows: Map<string, TableRow[]> = new Map();
-  private capturedImages: Map<string, CapturedImage> = new Map();
-  private auditLogs: AuditLog[] = [];
-
-  async upsertUser(user: UpsertUser): Promise<User> {
-    const existing = this.users.get(user.id);
-    const now = new Date();
-    const fullUser: User = {
-      ...user,
-      role: existing?.role || "viewer",
-      createdAt: existing?.createdAt || now,
-      updatedAt: now,
-    };
-    this.users.set(user.id, fullUser);
-    return fullUser;
-  }
-
-  async getUserById(id: string): Promise<User | null> {
-    return this.users.get(id) || null;
-  }
-
-  async getAllUsers(): Promise<User[]> {
-    return Array.from(this.users.values());
-  }
-
-  async updateUserRole(userId: string, { role }: UpdateUserRole): Promise<User> {
-    const user = this.users.get(userId);
-    if (!user) throw new Error("User not found");
-    user.role = role;
-    user.updatedAt = new Date();
-    return user;
-  }
-
-  async createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse> {
-    const id = `wh_${Date.now()}`;
-    const now = new Date();
-    const newWarehouse: Warehouse = { id, ...warehouse, createdAt: now, updatedAt: now };
-    this.warehouses.set(id, newWarehouse);
-    return newWarehouse;
-  }
-
-  async getWarehouses(): Promise<Warehouse[]> {
-    return Array.from(this.warehouses.values());
-  }
-
-  async getWarehouseById(id: string): Promise<Warehouse | null> {
-    return this.warehouses.get(id) || null;
-  }
-
-  async updateWarehouse(id: string, warehouse: Partial<InsertWarehouse>): Promise<Warehouse> {
-    const existing = this.warehouses.get(id);
-    if (!existing) throw new Error("Warehouse not found");
-    const updated = { ...existing, ...warehouse, updatedAt: new Date() };
-    this.warehouses.set(id, updated);
-    return updated;
-  }
-
-  async deleteWarehouse(id: string): Promise<void> {
-    this.warehouses.delete(id);
-  }
-
-  async createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem> {
-    const id = `inv_${Date.now()}`;
-    const now = new Date();
-    const newItem: InventoryItem = {
-      id,
-      ...item,
-      expirationDate: item.expirationDate ? new Date(item.expirationDate) : null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.inventoryItems.set(id, newItem);
-    return newItem;
-  }
-
-  async getInventoryItems(): Promise<InventoryItem[]> {
-    return Array.from(this.inventoryItems.values());
-  }
-
-  async getInventoryItemById(id: string): Promise<InventoryItem | null> {
-    return this.inventoryItems.get(id) || null;
-  }
-
-  async getInventoryByWarehouse(warehouseId: string): Promise<InventoryItem[]> {
-    return Array.from(this.inventoryItems.values()).filter(
-      (item) => item.warehouseId === warehouseId
-    );
-  }
-
-  async updateInventoryItem(id: string, item: Partial<InsertInventoryItem>): Promise<InventoryItem> {
-    const existing = this.inventoryItems.get(id);
-    if (!existing) throw new Error("Inventory item not found");
-    const updated = {
-      ...existing,
-      ...item,
-      expirationDate: item.expirationDate ? new Date(item.expirationDate) : existing.expirationDate,
-      updatedAt: new Date(),
-    };
-    this.inventoryItems.set(id, updated);
-    return updated;
-  }
-
-  async deleteInventoryItem(id: string): Promise<void> {
-    this.inventoryItems.delete(id);
-  }
-
-  async getLowStockItems(threshold = 10): Promise<InventoryItem[]> {
-    return Array.from(this.inventoryItems.values()).filter(
-      (item) => item.quantity < threshold
-    );
-  }
-
-  async getExpiringItems(daysAhead = 30): Promise<InventoryItem[]> {
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + daysAhead);
-    return Array.from(this.inventoryItems.values()).filter(
-      (item) => item.expirationDate && new Date(item.expirationDate) <= futureDate
-    );
-  }
-
-  async createProductHistory(history: InsertProductHistory): Promise<ProductHistory> {
-    const id = `hist_${Date.now()}`;
-    const newHistory: ProductHistory = { id, ...history, timestamp: new Date() };
-    const existing = this.productHistory.get(history.inventoryItemId) || [];
-    this.productHistory.set(history.inventoryItemId, [...existing, newHistory]);
-    return newHistory;
-  }
-
-  async getProductHistory(inventoryItemId: string): Promise<ProductHistory[]> {
-    return this.productHistory.get(inventoryItemId) || [];
-  }
-
-  async createTable(table: InsertTable): Promise<DataTable> {
-    const id = `tbl_${Date.now()}`;
-    const now = new Date();
-    const newTable: DataTable = { id, ...table, createdAt: now, updatedAt: now };
-    this.tables.set(id, newTable);
-    return newTable;
-  }
-
-  async getTables(): Promise<DataTable[]> {
-    return Array.from(this.tables.values());
-  }
-
-  async getTableById(id: string): Promise<DataTable | null> {
-    return this.tables.get(id) || null;
-  }
-
-  async deleteTable(id: string): Promise<void> {
-    this.tables.delete(id);
-    this.tableRows.delete(id);
-  }
-
-  async createTableRow(row: InsertTableRow): Promise<TableRow> {
-    const id = `row_${Date.now()}`;
-    const newRow: TableRow = { id, ...row, createdAt: new Date() };
-    const existing = this.tableRows.get(row.tableId) || [];
-    this.tableRows.set(row.tableId, [...existing, newRow]);
-    return newRow;
-  }
-
-  async getTableRows(tableId: string): Promise<TableRow[]> {
-    return this.tableRows.get(tableId) || [];
-  }
-
-  async deleteTableRow(id: string): Promise<void> {
-    for (const [tableId, rows] of this.tableRows.entries()) {
-      const filtered = rows.filter((row) => row.id !== id);
-      if (filtered.length !== rows.length) {
-        this.tableRows.set(tableId, filtered);
-        return;
-      }
-    }
-  }
-
-  async createCapturedImage(image: InsertCapturedImage): Promise<CapturedImage> {
-    const id = `img_${Date.now()}`;
-    const newImage: CapturedImage = { id, ...image, createdAt: new Date() };
-    this.capturedImages.set(id, newImage);
-    return newImage;
-  }
-
-  async getCapturedImages(): Promise<CapturedImage[]> {
-    return Array.from(this.capturedImages.values());
-  }
-
-  async getCapturedImageById(id: string): Promise<CapturedImage | null> {
-    return this.capturedImages.get(id) || null;
-  }
-
-  async updateCapturedImage(id: string, image: Partial<InsertCapturedImage>): Promise<CapturedImage> {
-    const existing = this.capturedImages.get(id);
-    if (!existing) throw new Error("Image not found");
-    const updated = { ...existing, ...image };
-    this.capturedImages.set(id, updated);
-    return updated;
-  }
-
-  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
-    const id = `log_${Date.now()}`;
-    const newLog: AuditLog = { id, ...log, timestamp: new Date() };
-    this.auditLogs.push(newLog);
-    return newLog;
-  }
-
-  async getAuditLogs(limit = 100): Promise<AuditLog[]> {
-    return this.auditLogs.slice(-limit);
-  }
-
-  async getDashboardStats() {
-    const warehouses = await this.getWarehouses();
-    const items = await this.getInventoryItems();
-    const lowStock = await this.getLowStockItems();
-    const expiring = await this.getExpiringItems();
-
-    return {
-      totalWarehouses: warehouses.length,
-      totalInventoryItems: items.length,
-      lowStockCount: lowStock.length,
-      expiringCount: expiring.length,
-      recentActivity: this.auditLogs.slice(-5).reverse().map((log) => ({
-        type: log.action,
-        description: log.action,
-        timestamp: log.timestamp.toISOString(),
-      })),
-    };
-  }
-}
+export const updateUserRoleSchema = z.object({
+  role: z.enum(userRoles),
+});
