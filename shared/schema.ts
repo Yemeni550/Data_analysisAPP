@@ -107,28 +107,28 @@ export const auditLogs = pgTable("audit_logs", {
   timestamp: timestamp("timestamp", { withTimezone: false }).defaultNow().notNull(),
 });
 
-export const usersRelations = relations(users, ({ many }) => ({
-  tables: many(tables, { relationName: "table_creator" }),
+export const usersRelations = relations(users, (helpers) => ({
+  tables: helpers.many(tables, { relationName: "table_creator" }),
 }));
 
-export const warehouseRelations = relations(warehouses, ({ many }) => ({
-  inventoryItems: many(inventoryItems),
+export const warehouseRelations = relations(warehouses, (helpers) => ({
+  inventoryItems: helpers.many(inventoryItems),
 }));
 
-export const inventoryRelations = relations(inventoryItems, ({ one, many }) => ({
-  warehouse: one(warehouses, {
+export const inventoryRelations = relations(inventoryItems, (helpers) => ({
+  warehouse: helpers.one(warehouses, {
     fields: [inventoryItems.warehouseId],
     references: [warehouses.id],
   }),
-  history: many(productHistory),
+  history: helpers.many(productHistory),
 }));
 
-export const tableRelations = relations(tables, ({ many }) => ({
-  rows: many(tableRows),
+export const tableRelations = relations(tables, (helpers) => ({
+  rows: helpers.many(tableRows),
 }));
 
-export const capturedImageRelations = relations(capturedImages, ({ one }) => ({
-  uploader: one(users, {
+export const capturedImageRelations = relations(capturedImages, (helpers) => ({
+  uploader: helpers.one(users, {
     fields: [capturedImages.uploadedBy],
     references: [users.id],
   }),

@@ -26,12 +26,7 @@
       "@shared/*": ["./shared/*"],
       "vite": ["./packager_files/node_modules/vite"],
       "vite/*": ["./packager_files/node_modules/vite/*"],
-      "vite/client": ["./packager_files/node_modules/vite/client.d.ts"],
-      "*": [
-        "./packager_files/node_modules/*",
-        "./packager_files/node_modules/@types/*",
-        "./*"
-      ]
+      "vite/client": ["./packager_files/node_modules/vite/client.d.ts"]
     }
   }
 }
